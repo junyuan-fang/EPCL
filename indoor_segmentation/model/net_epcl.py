@@ -96,6 +96,10 @@ class net_epcl(pl.LightningModule):
             feat = data_dict['feat']
             target = data_dict['target']
             offset = data_dict['offset']
+            print("coord.shape", coord.shape)
+            print("feat.shape", feat.shape)
+            print("target.shape", target.shape)
+            print("offset.shape", offset.shape)
         output = self.model([coord, feat, offset])
         if 'inds_recons' in data_dict:
                 inds_reverse = data_dict['inds_recons']

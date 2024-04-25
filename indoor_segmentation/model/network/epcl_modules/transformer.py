@@ -85,4 +85,4 @@ class EPCLEncoder(nn.Module):
         # load frozen clip transformer
         new_feats = self.blocks(feats)
     
-        return xyz, new_feats[:, 1:N+1, :].permute(1, 0, 2), None
+        return xyz, new_feats[:, 1:N+1, :].permute(1, 0, 2), None#exclude cls token

@@ -69,7 +69,11 @@ def data_load(data_name):
         coord = np.array([data['x'], data['y'], data['z']], dtype=np.float32).T
         feat = np.array([data['red'], data['green'], data['blue']], dtype=np.float32).T
         label = np.array(data['label'], dtype=np.int32)
-
+    # elif args.dataset == 'loder_arkit':
+    #     # Load ARKit data
+    #     # data = FrameReaderDataLoaderLowRes(root_path=data_name)
+    #     # coord, feat, label = data['pcd'], data['color'], data['label']
+    #     pass
     else:
         raise NotImplemented
 
