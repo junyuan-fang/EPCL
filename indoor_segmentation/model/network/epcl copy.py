@@ -37,20 +37,6 @@ def get_clip_text_feats(texts):
 
     return texts_feats
 
-class CrossAttentionBlock(nn.Module):
-    def __init__(self, visual_feat_dim, text_feat_dim, output_dim):
-        super(CrossAttentionBlock, self).__init__()
-        self.visual_attention = nn.MultiheadAttention(embed_dim=visual_feat_dim, num_heads=8, batch_first=True)
-        self.text_attention = nn.MultiheadAttention(embed_dim=text_feat_dim, num_heads=8, batch_first=True)
-        self.fc = nn.Linear(visual_feat_dim + text_feat_dim, output_dim)
-
-    def forward(self, visual_feats, text_feats):
-        text_context, _ = self.visual_attention(query=text_feats, key=visual_feats, value=visual_feats)
-        visual_context, _ = self.text_attention(query=visual_feats, key=text_feats, value=text_feats)
-        combined_feats = torch.cat([visual_context + text_feats, visual_context + visual_feats], dim=-1)
-        output = self.fc(combined_feats)
-        return output
-
 class BilinearFeedForward(nn.Module):
 
     def __init__(self, in_planes1, in_planes2, out_planes):
@@ -195,20 +181,14 @@ class EPCLSegNet(nn.Module):
         intraLayer='PointMixerIntraSetLayer',
         interLayer='PointMixerInterSetLayer',
         transup='SymmetricTransitionUpBlock', 
-        transdown='TransitionDownBlock'),
-        cross_blocks = 8:
+        transdown='TransitionDownBlock'):
         super().__init__()
         self.c = c
         self.intraLayer = intraLayer
         self.interLayer = interLayer
         self.transup = transup
         self.transdown = transdown
-        self.cross_blocks = cross_blocks
         self.in_planes, planes = c, [32, 64, 128, 256, 512]
-        self.cross_attention_block = self.ca_blocks = nn.ModuleList([
-            CrossAttentionBlock(visual_feat_dim=768, text_feat_dim=768, output_dim=768)
-            for _ in range(self.cross_blocks)
-        ])
         fpn_planes, fpnhead_planes, share_planes = 128, 64, 8
         
         assert stride[0] == 1, 'or you will meet errors.'

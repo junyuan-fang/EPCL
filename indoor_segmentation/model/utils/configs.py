@@ -25,13 +25,13 @@ class Config:
         self.shapenetcore_root = None
         self.s3dis_root = None
         #scnene_path
-        self.arkit_train_root = "/home/fangj1/Code/Vision-Language-on-3D-Scene-Understanding/EPCL/indoor_segmentation/data/cvpr24-challenge/data/ChallengeDevelopmentSet/"
-        self.arkit_test_root = "/home/fangj1/Code/Vision-Language-on-3D-Scene-Understanding/EPCL/indoor_segmentation/data/cvpr24-challenge/data/ChallengeTestSet/"
+        self.arkit_train_root = "/scratch/project_2002051/junyuan/cvpr24-challenge/data/ChallengeDevelopmentSet"
+        self.arkit_test_root = "/scratch/project_2002051/junyuan/cvpr24-challenge/data/ChallengeTestSet"
         #query_path
-        self.development_query_root = "/home/fangj1/Code/Vision-Language-on-3D-Scene-Understanding/EPCL/indoor_segmentation/data/cvpr24-challenge/challenge/benchmark_file_lists/queries_development_scenes.csv"
-        self.test_query_root = "/home/fangj1/Code/Vision-Language-on-3D-Scene-Understanding/EPCL/indoor_segmentation/data/cvpr24-challenge/challenge/benchmark_file_lists/queries_test_scenes.csv"
+        self.development_query_root = "/scratch/project_2002051/junyuan/cvpr24-challenge/challenge/benchmark_file_lists/queries_development_scenes.csv"
+        self.test_query_root = "/scratch/project_2002051/junyuan/cvpr24-challenge/challenge/benchmark_file_lists/queries_test_scenes.csv"
         #mask_path
-        self.development_mask_root = "/home/fangj1/Code/Vision-Language-on-3D-Scene-Understanding/EPCL/indoor_segmentation/data/cvpr24-challenge/challenge/benchmark_data/gt_development_scenes/"
+        self.development_mask_root = "/scratch/project_2002051/junyuan/cvpr24-challenge/challenge/benchmark_data/gt_development_scenes"
         self.test_mask_root = ""
         
         self.loop = 30
