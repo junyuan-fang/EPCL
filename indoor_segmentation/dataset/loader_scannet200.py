@@ -1,4 +1,3 @@
-
 from copy import deepcopy
 import pdb
 import os
@@ -25,8 +24,8 @@ torch.cuda.manual_seed_all(seed) # if use multi-GPU
 # torch.backends.cudnn.deterministic=True
 # torch.backends.cudnn.benchmark=False
 
-def TrainValCollateFn(batch):# each element of batch's shape is (N,3),(N,3), (N,1)
-    coord, feat, label = list(zip(*batch))
+def TrainValCollateFn(batch):
+    coord, feat, label, _ = list(zip(*batch))
     offset, count = [], 0
     for item in coord: # len of pc
         count += item.shape[0]
@@ -36,7 +35,7 @@ def TrainValCollateFn(batch):# each element of batch's shape is (N,3),(N,3), (N,
             'coord': torch.cat(coord),
             'feat': torch.cat(feat),
             'target': torch.cat(label),
-            'offset': torch.IntTensor(offset),# from list to tensor, and tensor's shape is (B,)
+            'offset': torch.IntTensor(offset),
         }
     return data_dict
 
@@ -54,7 +53,7 @@ def TestCollateFn(batch):
     return data_dict
 
 
-class myImageFloder(Dataset):
+class ScanNetLoader(Dataset):
     
     def __init__(self, args, mode, test_split=None):
         super().__init__()
@@ -109,7 +108,7 @@ class myImageFloder(Dataset):
     
     def load_trainval_data(self):
         data_list = sorted(os.listdir(self.data_root))
-        data_list = [item[:-4] for item in data_list if 'Area_' in item]
+        data_list = [item[:-4] for item in data_list if '.ply' in item]
         if self.mode == 'train':
             self.data_list = \
                 [item for item in data_list if not 'Area_{}'.format(self.test_area) in item]

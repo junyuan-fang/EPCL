@@ -1,4 +1,4 @@
-class Config:
+class Config_train:
     def __init__(self):
         self.model = 'net_epcl'
         self.arch = 'epcl'
@@ -24,9 +24,13 @@ class Config:
         self.shapenet_root = None
         self.shapenetcore_root = None
         self.s3dis_root = None
+        self.strict = False
         #scnene_path
         self.arkit_train_root = "/scratch/project_2002051/junyuan/cvpr24-challenge/data/ChallengeDevelopmentSet"
         self.arkit_test_root = "/scratch/project_2002051/junyuan/cvpr24-challenge/data/ChallengeTestSet"
+        #self.scannet_train_200 = "/scratch/project_2002051/junyuan/cvpr24-challenge/data/ScanNet200/train"
+        #
+        self.scannet_root = "/scratch/project_2002051/junyuan/cvpr24-challenge/data/ScanNet200"
         #query_path
         self.development_query_root = "/scratch/project_2002051/junyuan/cvpr24-challenge/challenge/benchmark_file_lists/queries_development_scenes.csv"
         self.test_query_root = "/scratch/project_2002051/junyuan/cvpr24-challenge/challenge/benchmark_file_lists/queries_test_scenes.csv"
@@ -72,3 +76,8 @@ class Config:
         self.neptune_id = "junyuan-fang"
         self.neptune_key = "eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJmMDRjNjUwMC0wYmJmLTQ5MjUtYmI1Mi0xNThhNWIwNmVlOTUifQ"
         self.load_model = "/home/fangj1/Code/Vision-Language-on-3D-Scene-Understanding/EPCL/indoor_segmentation/checkpoints/epoch=062--mIoU_val=0.6972--.ckpt"
+        
+        
+class Config_test:
+    def __init__(self):
+        pass

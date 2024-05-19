@@ -168,8 +168,8 @@ def data_prepare_scannet(
     split='train', voxel_size=0.04, voxel_max=None, 
     transform=None, shuffle_index=False):
     if transform:
-        # coord, feat, label = transform(coord, feat, label)
-        coord, feat = transform(coord, feat)
+        coord, feat, label = transform(coord, feat, label)
+        #coord, feat = transform(coord, feat)
     if voxel_size:
         coord_min = np.min(coord, 0)
         coord -= coord_min

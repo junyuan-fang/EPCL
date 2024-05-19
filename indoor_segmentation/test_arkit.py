@@ -16,8 +16,7 @@ from pytorch_lightning.strategies import DDPStrategy
 import yaml
 from easydict import EasyDict
 from model import get as get_model
-from model.utils.configs import Config
-from model.utils.common_util import AverageMeter, intersectionAndUnion, find_free_port
+from configs.configs import Config_train as Config
 import torch_scatter
 # from model import get as get_model
 # from dataset import get as get_dataset
@@ -69,7 +68,7 @@ assert args.load_model is not None, 'why did you come?'
 print(args.transdown)
 model = get_model(args.model).load_from_checkpoint(
     os.path.join(args.MYCHECKPOINT, args.load_model), 
-    args=args).to(device) # args.strict_load
+    args=args, strict = False).to(device) # args.strict_load
 
 model.eval()
 model.freeze()
@@ -80,6 +79,9 @@ model.freeze()
 from torch.utils.data import Dataset
 import pandas as pd
 from torch.utils.data import DataLoader
+from dataset.utils import transform as t
+from plyfile import PlyData, PlyElement
+from dataset.utils.data_util import data_prepare_v101 as data_prepare
 class ArkitDataLoader(Dataset):
     def __init__(self, scene_path , query_path = None, mask_path = None):
         """
@@ -93,6 +95,17 @@ class ArkitDataLoader(Dataset):
         self.query_list = []
         self.mask_list = []
         self.scene_id = None
+        
+        self.shuffle_index = True
+        self.voxel_max = 8000000
+        self.transform = t.Compose(
+                [
+                    t.RandomScale([0.9, 1.1]), 
+                    t.ChromaticAutoContrast(),
+                    t.ChromaticTranslation(), 
+                    t.ChromaticJitter(), 
+                    t.HueSaturationTranslation()
+                ])
         
         # 然后加载数据
         self.load_ply_list()
@@ -136,28 +149,38 @@ class ArkitDataLoader(Dataset):
         """
         self.scene_id = self.mask_list[idx].split('/')[-1].split('_')[0]
         #print(self.ply_list[idx].split('/')[-1].split('_')[0])
-        # 加载点云文件
-        pcd = o3d.io.read_point_cloud(self.ply_list[idx])
-
-        # 获取坐标
-        coordinates = np.asarray(pcd.points, dtype=np.float32)
-
-        # 获取特征，这里假设使用颜色作为特征
-        if pcd.colors:
-            features = np.asarray(pcd.colors, dtype=np.float32)  # RGB颜色
-        else:
-            features = np.zeros((coordinates.shape[0], 3), dtype=np.float32)  # 如果没有颜色，使用零填充
+        # plyfile 加载点云文件
+        plydata = PlyData.read(self.ply_list[idx])
+        vertex_data = plydata['vertex']
+        coordinates = np.vstack([vertex_data['x'], vertex_data['y'], vertex_data['z']]).T
+        features = np.vstack([vertex_data['red'], vertex_data['green'], vertex_data['blue']]).T        # Extract colors
+        
+        # #open3d way
+        # pcd = o3d.io.read_point_cloud(self.ply_list[idx])
+        # coordinates = np.asarray(pcd.points, dtype=np.float32)# 获取坐标
+        # if pcd.colors:# 获取特征，这里假设使用颜色作为特征
+        #     features = np.asarray(pcd.colors, dtype=np.float32)  # RGB颜色
+        # else:
+        #     features = np.zeros((coordinates.shape[0], 3), dtype=np.float32)  # 如果没有颜色，使用零填充
 
         
-        #mask
+        #mask from another path
         if self.mask_path is not None:
             mask = read_txt(self.mask_list[idx])
+            
+        # Optionally, convert labels to a numpy array for easier manipulation
+        labels_array = label.astype(np.int64)
+        coord, feat, label = data_prepare(
+            coord, feat, labels_array, 
+            self.mode, self.voxel_size, self.voxel_max, 
+            self.transform, self.shuffle_index)
         # 将数据转换为torch tensors
-        mask = torch.tensor(mask).unsqueeze(1)
-        coordinates = torch.from_numpy(coordinates)
-        features = torch.from_numpy(features)
+        # mask = torch.tensor(mask).unsqueeze(1)
+        # coordinates = torch.from_numpy(coordinates)
+        # features = torch.from_numpy(features)
 
         #return {'coord': coordinates, 'feat': features, 'prompt': self.query_list[idx], 'target': mask}
+        #(N,3),(N,3), [str], (N,1)
         return coordinates, features, self.query_list[idx], mask
 def TrainValCollateFn(batch):
     coord, feat, prompt, mask = list(zip(*batch))
@@ -165,11 +188,6 @@ def TrainValCollateFn(batch):
     for item in coord: # len of pc
         count += item.shape[0]
         offset.append(count)
-    
-    print("Coordinates type:", type(coord[0]))  # Check the type of the first coordinate set
-    print("Features type:", type(feat[0]))      # Check the type of the first features set
-    print("Mask type:", type(mask[0]))          # Check the type of the first mask
-    print("Offset type:", type(offset[0]))      # Check the type of the first offset
     
     data_dict = \
         {
@@ -186,8 +204,31 @@ data_loader = DataLoader(dataset, batch_size= args.train_batch, collate_fn=Train
 
 data_iterator = iter(data_loader)
 first_batch = next(data_iterator)
+# if isinstance(first_batch, dict):
+#     # 切片每个组件的前10个元素
+#     sliced_batch = {key: value[:10] for key, value in first_batch.items()}
+# else:
+#     # 如果不是字典，直接切片
+#     sliced_batch = first_batch[:10]
 output = model(first_batch)#[{output: tensor()},{loss: tensor()}]
 
+def print_cuda_memory_usage(device_id=0):
+    t = torch.cuda.get_device_properties(device_id).total_memory
+    r = torch.cuda.memory_reserved(device_id) 
+    a = torch.cuda.memory_allocated(device_id)
+    f = r - a  # free inside reserved
+
+    print(f"CUDA Device ID: {device_id}")
+    print(f"Total memory: {t / 1e9:.2f} GB")
+    print(f"Reserved memory: {r / 1e9:.2f} GB")
+    print(f"Allocated memory: {a / 1e9:.2f} GB")
+    print(f"Free (inside reserved): {f / 1e9:.2f} GB")
+    memory_summary = torch.cuda.memory_summary(device=device, abbreviated=False)
+    print(memory_summary)
+print_cuda_memory_usage(device)
+
+import sys
+sys.exit()
 ######################fine-tuning#####################
 
 

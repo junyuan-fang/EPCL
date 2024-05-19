@@ -416,7 +416,7 @@ class HueSaturationTranslation(object):
         rgb[..., 2] = np.select(conditions, [v, p, t, v, v, q], default=p)
         return rgb.astype('uint8')
 
-    def __init__(self, hue_max, saturation_max):
+    def __init__(self, hue_max=0.5, saturation_max=0.2):
         self.hue_max = hue_max
         self.saturation_max = saturation_max
 

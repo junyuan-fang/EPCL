@@ -156,13 +156,46 @@ class RandomCrop(object):
 
 class RandomScale(object):
     def __init__(self, scale=[0.9, 1.1], anisotropic=False):
+        """
+        scale: A range [min, max] for the random scale multiplier
+        anisotropic: True  -->   different scaling factors for different axes
+                     False -->   same scaling factor for all axes
+        """
         self.scale = scale
         self.anisotropic = anisotropic
 
     def __call__(self, coord, feat, label):
+        """
+        Apply the scaling transformation to the coordinates.
+
+        Parameters:
+            coord (array): The coordinate array to be scaled.
+            feat (array): Feature data associated with the coordinates; not modified by this transform.
+            label (array): Labels associated with the coordinates; not modified by this transform.
+
+        Returns:
+            tuple: A tuple containing the scaled coordinates, features, and labels.
+        """
+
         scale = np.random.uniform(self.scale[0], self.scale[1], 3 if self.anisotropic else 1)
         coord *= scale
         return coord, feat, label
+
+class ChromaticAutoContrast(object):
+    def __init__(self, p=0.2, blend_factor=None):
+        self.p = p
+        self.blend_factor = blend_factor
+
+    def __call__(self, coord, feat, label):
+        if np.random.rand() < self.p:
+            lo = np.min(feat, 0, keepdims=True)
+            hi = np.max(feat, 0, keepdims=True)
+            scale = 255 / (hi - lo)
+            contrast_feat = (feat[:, :3] - lo) * scale
+            blend_factor = np.random.rand() if self.blend_factor is None else self.blend_factor
+            feat[:, :3] = (1 - blend_factor) * feat[:, :3] + blend_factor * contrast_feat
+        return coord, feat, label
+
 
 
 class RandomShift(object):
@@ -198,22 +231,6 @@ class RandomJitter(object):
         assert (self.clip > 0)
         jitter = np.clip(self.sigma * np.random.randn(coord.shape[0], 3), -1 * self.clip, self.clip)
         coord += jitter
-        return coord, feat, label
-
-
-class ChromaticAutoContrast(object):
-    def __init__(self, p=0.2, blend_factor=None):
-        self.p = p
-        self.blend_factor = blend_factor
-
-    def __call__(self, coord, feat, label):
-        if np.random.rand() < self.p:
-            lo = np.min(feat, 0, keepdims=True)
-            hi = np.max(feat, 0, keepdims=True)
-            scale = 255 / (hi - lo)
-            contrast_feat = (feat[:, :3] - lo) * scale
-            blend_factor = np.random.rand() if self.blend_factor is None else self.blend_factor
-            feat[:, :3] = (1 - blend_factor) * feat[:, :3] + blend_factor * contrast_feat
         return coord, feat, label
 
 

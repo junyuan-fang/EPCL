@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from lib.pointops2.functions import pointops
 from .hier import *
 from .inter import *
-from .epcl_modules.transformer import EPCLEncoder
+from .epcl_modules.transformer import EPCLEncoder, CLIPTextEncoder
 
 seed=0
 # pl.seed_everything(seed) # , workers=True
@@ -195,8 +195,8 @@ class EPCLSegNet(nn.Module):
         intraLayer='PointMixerIntraSetLayer',
         interLayer='PointMixerInterSetLayer',
         transup='SymmetricTransitionUpBlock', 
-        transdown='TransitionDownBlock'),
-        cross_blocks = 8:
+        transdown='TransitionDownBlock',
+        cross_blocks = 8):
         super().__init__()
         self.c = c
         self.intraLayer = intraLayer
@@ -230,6 +230,7 @@ class EPCLSegNet(nn.Module):
             nn.Linear(planes[0], k))
         # epcl encoder
         self.transformer = EPCLEncoder(embed_dim=768)
+        self.text_transformer = CLIPTextEncoder(embed_dim=768)###
         self.input_layer =  nn.Sequential( 
                 nn.Linear(planes[4], 768),
                 nn.BatchNorm1d(768),
@@ -289,22 +290,30 @@ class EPCLSegNet(nn.Module):
         pc = pc / m
         return pc
 
-    def forward(self, pxo):
-        p0, x0, o0 = pxo  # (n, 3), (n, c), (b)->xyz,feature,batch_size
-        x0 = p0 if self.c == 3 else torch.cat((p0, x0), 1)
+    def forward(self, pxo):#pxo -> point feature offset
+        p0, x0, o0, prompt = pxo  # (n, 3), (n, c), (b)->xyz,feature,batch_size,这里的c和EPCLSegNet init 的 c=6 的c 不一样，这里的c 是 数据集的RGB， c=6 是xyzRGB
+        print("shape of the prompt",prompt.shape)
+        x0 = p0 if self.c == 3 else torch.cat((p0, x0), 1)# x 这时候其实已经包括了自身x和p的信息。
         p1, x1, o1 = self.enc1([p0, x0, o0]) # 1 6 -> 32
         p2, x2, o2 = self.enc2([p1, x1, o1]) # 4 32 -> 64
         p3, x3, o3 = self.enc3([p2, x2, o2]) # 16 64 -> 128
         p4, x4, o4 = self.enc4([p3, x3, o3]) # 64 128 -> 256
         p5, x5, o5 = self.enc5([p4, x4, o4]) # 256 256 -> 512
         # ++++++++++++epcl module++++++++++++++++
-        res = x5
-        b, n = len(o5), p5.shape[0]
-        x5 = self.input_layer(x5)
-        pos = p5.reshape(b, n//b, -1)
-        pos = self.pc_norm(pos)
-        _, x5, _ = self.transformer(x5.reshape(b, n//b, -1).permute(1,0,2), pos)
-        x5 = x5.permute(1, 0, 2).reshape(n, -1)
+        res = x5 #(n,512)
+        b, n = len(o5), p5.shape[0]#b = batch_size, n = is all point, sum from all batches
+        x5 = self.input_layer(x5)#project to 768  (n,768)
+        pos = p5.reshape(b, n//b, -1)# from (n,3) to (b, n//b ,3) for latter positional encoding.
+        pos = self.pc_norm(pos)# shift to origin
+        _, x5, _ = self.transformer(x5.reshape(b, n//b, -1).permute(1,0,2), pos)#x5.reshape(b, n//b, -1).permute(1,0,2)->(n//b, b, 768) fit to ViT's transformer block
+        #N,b,768
+        # ///////////fine tuning ////////////////
+        fine_txt_feature = self.text_transformer(text = prompt, apply_projection = False )
+        print("fine_txt_feature:", fine_txt_feature.shape)
+        global_txt_feature = self.text_transformer(text = prompt, apply_projection = True )
+        print("global_txt_featrue",global_txt_feature.shape)
+        # ///////////////////////////////////////
+        x5 = x5.permute(1, 0, 2).reshape(n, -1)# b n//b 768 -> n,512
         x5 = self.output_layer(x5)
         x5 = res + x5
         # +++++++++++++++++++++++++++++++++++++++
@@ -317,7 +326,6 @@ class EPCLSegNet(nn.Module):
         return x
 
 def getEPCLSegNet(**kwargs):
-    
     model = EPCLSegNet(PointMixerBlock, [2, 3, 4, 6, 3], **kwargs)  
     
     return model
