@@ -97,6 +97,7 @@ class ArkitDataLoader(Dataset):
         self.scene_id = None
         
         self.shuffle_index = True
+        self.voxel_size = 0.04
         self.voxel_max = 8000000
         self.transform = t.Compose(
                 [
@@ -106,7 +107,7 @@ class ArkitDataLoader(Dataset):
                     t.ChromaticJitter(), 
                     t.HueSaturationTranslation()
                 ])
-        
+        self.mode = 'train'
         # 然后加载数据
         self.load_ply_list()
         self.load_query_list()
@@ -136,6 +137,9 @@ class ArkitDataLoader(Dataset):
         if self.mask_path is not None:
             self.mask_list = sorted(glob.glob(os.path.join(self.mask_path, '*.txt')))
             #print(self.mask_list)
+    def get_mask(self, file):
+        mask = read_txt(file)
+        return np.array(mask, dtype=np.int64)
     def __len__(self):
         """
         数据集中的样本数
@@ -152,8 +156,8 @@ class ArkitDataLoader(Dataset):
         # plyfile 加载点云文件
         plydata = PlyData.read(self.ply_list[idx])
         vertex_data = plydata['vertex']
-        coordinates = np.vstack([vertex_data['x'], vertex_data['y'], vertex_data['z']]).T
-        features = np.vstack([vertex_data['red'], vertex_data['green'], vertex_data['blue']]).T        # Extract colors
+        coord = np.vstack([vertex_data['x'], vertex_data['y'], vertex_data['z']]).T
+        feat = np.vstack([vertex_data['red'], vertex_data['green'], vertex_data['blue']]).T        # Extract colors
         
         # #open3d way
         # pcd = o3d.io.read_point_cloud(self.ply_list[idx])
@@ -166,12 +170,12 @@ class ArkitDataLoader(Dataset):
         
         #mask from another path
         if self.mask_path is not None:
-            mask = read_txt(self.mask_list[idx])
+            mask = self.get_mask(self.mask_list[idx])
             
         # Optionally, convert labels to a numpy array for easier manipulation
-        labels_array = label.astype(np.int64)
-        coord, feat, label = data_prepare(
-            coord, feat, labels_array, 
+        # labels_array = mask.astype(np.int64)
+        coord, feat, mask = data_prepare(
+            coord, feat, mask, 
             self.mode, self.voxel_size, self.voxel_max, 
             self.transform, self.shuffle_index)
         # 将数据转换为torch tensors
@@ -181,7 +185,7 @@ class ArkitDataLoader(Dataset):
 
         #return {'coord': coordinates, 'feat': features, 'prompt': self.query_list[idx], 'target': mask}
         #(N,3),(N,3), [str], (N,1)
-        return coordinates, features, self.query_list[idx], mask
+        return coord, feat, self.query_list[idx], mask
 def TrainValCollateFn(batch):
     coord, feat, prompt, mask = list(zip(*batch))
     offset, count = [], 0
@@ -200,48 +204,47 @@ def TrainValCollateFn(batch):
     return data_dict
 dataset = ArkitDataLoader(args.arkit_train_root,args.development_query_root,args.development_mask_root)
 #data_loader = DataLoader(dataset, batch_size= args.train_batch, collate_fn=TrainValCollateFn)
-data_loader = DataLoader(dataset, batch_size= args.train_batch, collate_fn=TrainValCollateFn)
+train_loader = DataLoader(dataset, batch_size=args.train_batch, collate_fn=TrainValCollateFn) #args.train_batch, collate_fn=TrainValCollateFn)
 
-data_iterator = iter(data_loader)
-first_batch = next(data_iterator)
-# if isinstance(first_batch, dict):
-#     # 切片每个组件的前10个元素
-#     sliced_batch = {key: value[:10] for key, value in first_batch.items()}
-# else:
-#     # 如果不是字典，直接切片
-#     sliced_batch = first_batch[:10]
-output = model(first_batch)#[{output: tensor()},{loss: tensor()}]
+# data_iterator = iter(train_loader)
+# first_batch = next(data_iterator)
+# output = model(first_batch)#[{output: tensor()},{loss: tensor()}]
 
-def print_cuda_memory_usage(device_id=0):
-    t = torch.cuda.get_device_properties(device_id).total_memory
-    r = torch.cuda.memory_reserved(device_id) 
-    a = torch.cuda.memory_allocated(device_id)
-    f = r - a  # free inside reserved
 
-    print(f"CUDA Device ID: {device_id}")
-    print(f"Total memory: {t / 1e9:.2f} GB")
-    print(f"Reserved memory: {r / 1e9:.2f} GB")
-    print(f"Allocated memory: {a / 1e9:.2f} GB")
-    print(f"Free (inside reserved): {f / 1e9:.2f} GB")
-    memory_summary = torch.cuda.memory_summary(device=device, abbreviated=False)
-    print(memory_summary)
-print_cuda_memory_usage(device)
+# import sys
+# sys.exit()
+######################fine-tuning#####################
+from pytorch_lightning.loggers import TensorBoardLogger
+logger = TensorBoardLogger("tb_logs", name="finetuned")
 
-import sys
-sys.exit()
+
+# Define the checkpoint callback
+checkpoint_callback = pl.callbacks.ModelCheckpoint(
+    dirpath=os.path.join(args.MYCHECKPOINT),
+    filename='{epoch:03d}--{mIoU_val:.4f}--',
+    monitor="mIoU_val",
+    save_top_k=3,
+    mode="max",
+    save_last=True
+)
+
+# Define the trainer
+trainer = pl.Trainer(
+        logger = logger,
+        gpus=args.NUM_GPUS,
+        max_epochs=args.epochs,
+        progress_bar_refresh_rate=20,
+        checkpoint_callback=checkpoint_callback 
+
+    )
+
+if args.on_train:
+    print("TRAIN START")
+    trainer.fit(model, train_loader)
+    print("TRAIN END")
+
 ######################fine-tuning#####################
 
-
-from torch import nn
-cls = nn.Sequential(
-    nn.Linear(32, 128), 
-    nn.BatchNorm1d(128), 
-    nn.ReLU(inplace=True),
-    nn.Dropout(0.5),
-    nn.Linear(128, 512), 
-    nn.BatchNorm1d(512), 
-    nn.ReLU(inplace=True))
-cls = cls.to(device)
 
 def print_cuda_memory_usage(device_id=0):
     t = torch.cuda.get_device_properties(device_id).total_memory

@@ -12,7 +12,7 @@ class Config_train:
         self.fea_dim = 6
         self.classes = 13
         self.cudnn_benchmark = False
-        self.train_batch = 2
+        self.train_batch = 1#2
         self.val_batch = 4
         self.test_batch = 10
         self.train_worker = 4

@@ -101,13 +101,16 @@ class net_epcl(pl.LightningModule):
             # print("target.shape", target.shape)
             # print("offset.shape", offset.shape)
             prompt = data_dict['prompt']
-        output = self.model([coord, feat, offset,prompt])## need to be modified
+        output = self.model([coord, feat, offset, prompt])## need to be modified
         if 'inds_recons' in data_dict:
                 inds_reverse = data_dict['inds_recons']
                 output = output[inds_reverse, :]
         pred_dict['output'] = output
         if target.shape[-1] == 1:
             target = target[:, 0]  # for cls
+        print("shape of output", output.shape)
+        print("shape of target", target.shape)
+        print("dtype of the target", target.dtype)
         loss = nn.CrossEntropyLoss(ignore_index=self.ignore_label)(output, target)
         loss_dict['loss'] = loss
 

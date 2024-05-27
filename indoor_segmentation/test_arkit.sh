@@ -2,13 +2,16 @@
 #SBATCH --job-name=epcl
 #SBATCH --account=project_2002051
 #SBATCH --partition=gputest
-#SBATCH --time=00:12:00
+#SBATCH --time=00:15:00
 #SBATCH --ntasks=1
-##SBATCH --cpus-per-task=10
-##SBATCH --gres=gpu:a100_1g.5gb:1  # 请求一个分片的 A100 GPU
-#SBATCH --gres=gpu:a100:1
+#SBATCH --cpus-per-task=1
+##SBATCH --gres=gpu:a100_1g.5gb:1,nvme:90  # 请求一个分片的 A100 GPU
+#SBATCH --mem=17500
+## SBATCH --gres=gpu:a100_1g.5gb:2,nvme:90  # 请求一个分片的 A100 GPU
+## SBATCH --mem=35000
+#SBATCH --gres=gpu:a100:1,nvme:90
 ## if local fast disk on a node is also needed, replace above line with:
-##SBATCH --gres=gpu:a100:1,nvme:900
+##SBATCH --gres=gpu:a100:1,nvme:90
 #
 ## Please remember to load the environment your application may need.
 ## And use the variable $LOCAL_SCRATCH in your batch job script 
